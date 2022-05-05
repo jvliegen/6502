@@ -35,6 +35,15 @@ architecture Behavioural of processor is
         );
     end component;
 
+    component decoder is
+        port (
+            sys_reset_n : in STD_LOGIC;
+            clock : in STD_LOGIC;
+            A : in STD_LOGIC_VECTOR(7 downto 0);
+            control_signals : out STD_LOGIC_VECTOR(31 downto 0)
+        );
+    end component;
+
     -- (DE-)LOCALISING IN/OUTPUTS
     signal sys_reset_n_i : STD_LOGIC;
     signal clock_i : STD_LOGIC;
@@ -43,14 +52,20 @@ architecture Behavioural of processor is
 
     -- CONTROL PATH
     signal cp_pc_inc : STD_LOGIC;
+    signal cp_regA_ld_immediate : STD_LOGIC;
     
     
     
-    signal from_memory : STD_LOGIC_VECTOR(7 downto 0);
-
+    
     -- PROGRAM COUNTER
     signal program_counter_i : STD_LOGIC_VECTOR(15 downto 0);
-
+    
+    -- DECODER
+    signal from_memory : STD_LOGIC_VECTOR(7 downto 0);
+    signal control_signals : STD_LOGIC_VECTOR(31 downto 0);
+    
+    -- REGISTERS
+    signal regA : STD_LOGIC_VECTOR(7 downto 0);
 
 begin
 
@@ -63,16 +78,35 @@ begin
     from_memory <= data;
 
     -------------------------------------------------------------------------------
-    -- CONTROL PATH
-    -------------------------------------------------------------------------------  
-    cp_pc_inc <= '1';
-
-    -------------------------------------------------------------------------------
     -- PROGRAM COUNTER
     -------------------------------------------------------------------------------
     pc_inst00: component pc port map( sys_reset_n => sys_reset_n_i, clock => clock_i,
                                       inc => cp_pc_inc, Z => program_counter_i);
 
 
+    -------------------------------------------------------------------------------
+    -- DECODER
+    -------------------------------------------------------------------------------
+    decoder_inst00: component decoder port map( sys_reset_n => sys_reset_n_i, clock => clock_i, A => from_memory, control_signals => control_signals);
+    
+    cp_pc_inc <= control_signals(0);
+    cp_regA_ld_immediate <= control_signals(1);
+
+
+    -------------------------------------------------------------------------------
+    -- REGISTERS
+    -------------------------------------------------------------------------------
+    PREG: process(sys_reset_n_i, clock_i)
+    begin
+        if sys_reset_n_i = '0' then 
+            regA <= x"00";
+        elsif rising_edge(clock_i) then 
+            if cp_regA_ld_immediate = '1' then 
+                regA <= from_memory;
+            end if;
+        end if;
+    end process;
+
+        
 
 end Behavioural;
