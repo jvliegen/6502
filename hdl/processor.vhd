@@ -52,7 +52,10 @@ architecture Behavioural of processor is
 
     -- CONTROL PATH
     signal cp_pc_inc : STD_LOGIC;
-    signal cp_regA_ld_immediate : STD_LOGIC;
+    signal cp_regA_ld : STD_LOGIC;
+    signal cp_regABL_ld : STD_LOGIC;
+    signal cp_regABH_ld : STD_LOGIC;
+    signal cp_regABH_clr : STD_LOGIC;
     
     
     
@@ -66,6 +69,8 @@ architecture Behavioural of processor is
     
     -- REGISTERS
     signal regA : STD_LOGIC_VECTOR(7 downto 0);
+    signal regABH : STD_LOGIC_VECTOR(7 downto 0);
+    signal regABL : STD_LOGIC_VECTOR(7 downto 0);
 
 begin
 
@@ -74,8 +79,9 @@ begin
     -------------------------------------------------------------------------------
     sys_reset_n_i <= sys_reset_n;
     clock_i <= clock;
-    address <= program_counter_i;
     from_memory <= data;
+    
+    address <= program_counter_i;
 
     -------------------------------------------------------------------------------
     -- PROGRAM COUNTER
@@ -90,8 +96,11 @@ begin
     decoder_inst00: component decoder port map( sys_reset_n => sys_reset_n_i, clock => clock_i, A => from_memory, control_signals => control_signals);
     
     cp_pc_inc <= control_signals(0);
-    cp_regA_ld_immediate <= control_signals(1);
+    cp_regA_ld <= control_signals(1);
 
+    cp_regABL_ld <= control_signals(2);
+    cp_regABH_ld <= control_signals(3);
+    cp_regABH_clr <= control_signals(4);
 
     -------------------------------------------------------------------------------
     -- REGISTERS
@@ -100,10 +109,23 @@ begin
     begin
         if sys_reset_n_i = '0' then 
             regA <= x"00";
+            regABL <= x"00";
+            regABH <= x"00";
         elsif rising_edge(clock_i) then 
-            if cp_regA_ld_immediate = '1' then 
+            if cp_regA_ld = '1' then 
                 regA <= from_memory;
             end if;
+
+            if cp_regABH_clr = '1' then 
+                regABH <= x"00";
+            elsif cp_regABH_ld = '1' then 
+                regABH <= from_memory;
+            end if;
+
+            if cp_regABL_ld = '1' then 
+                regABL <= from_memory;
+            end if;
+
         end if;
     end process;
 
