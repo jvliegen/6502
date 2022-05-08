@@ -58,7 +58,7 @@ architecture Behavioural of decoder is
     signal cp_regABH_ld : STD_LOGIC;
     signal cp_regABH_clr : STD_LOGIC;
     signal cp_ld_target : STD_LOGIC;
-
+    signal cp_address_selector : STD_LOGIC_VECTOR(2 downto 0);
 
 begin
 
@@ -68,7 +68,7 @@ begin
     sys_reset_n_i <= sys_reset_n;
     clock_i <= clock;
     A_i <= A;
-    control_signals <= x"000000" & "000" & cp_regABH_clr & cp_regABH_ld & cp_regABL_ld & cp_regA_ld & cp_pc_inc;
+    control_signals <= cp_address_selector & '0' & x"00000" & "000" & cp_regABH_clr & cp_regABH_ld & cp_regABL_ld & cp_regA_ld & cp_pc_inc;
 
 
     -------------------------------------------------------------------------------
@@ -151,29 +151,30 @@ begin
         cp_regABL_ld <= '0';
         cp_regABH_ld <= '0';
         cp_regABH_clr <= '0';
+        cp_address_selector <= "000";
         case curState is
 
             when sFetch_instruction =>                      cp_pc_inc <= '1';
 
-            when sFetch_immediate =>                        cp_pc_inc <= '1';                                               cp_ld_target <= '1';
+            when sFetch_immediate =>                        cp_pc_inc <= '1';                                               cp_ld_target <= '1';  cp_address_selector <= "000";
 
-            when sFetch_zeropage_ABL_andClearABH =>         cp_pc_inc <= '1'; cp_regABL_ld <= '1';                      cp_regABH_clr <= '1';
-            when sFetch_zeropage_data =>                    cp_pc_inc <= '1';                                               cp_ld_target <= '1';
+            when sFetch_zeropage_ABL_andClearABH =>         cp_pc_inc <= '0'; cp_regABL_ld <= '1';                      cp_regABH_clr <= '1'; cp_address_selector <= "001";
+            when sFetch_zeropage_data =>                    cp_pc_inc <= '1';                                               cp_ld_target <= '1';  cp_address_selector <= "000";
             
-            when sFetch_zeropageX_ABLplusX_andClearABH =>   cp_pc_inc <= '1'; cp_regABL_ld <= '1';                      cp_regABH_clr <= '1';
-            when sFetch_zeropageX_data =>                   cp_pc_inc <= '1';                                               cp_ld_target <= '1';
+            when sFetch_zeropageX_ABLplusX_andClearABH =>   cp_pc_inc <= '0'; cp_regABL_ld <= '1';                      cp_regABH_clr <= '1'; cp_address_selector <= "001";
+            when sFetch_zeropageX_data =>                   cp_pc_inc <= '1';                                               cp_ld_target <= '1';  cp_address_selector <= "000";
             
             when sFetch_absolute_ABL =>                     cp_pc_inc <= '1'; cp_regABL_ld <= '1';
             when sFetch_absolute_ABH =>                     cp_pc_inc <= '1';                      cp_regABH_ld <= '1';
-            when sFetch_absolute_data =>                    cp_pc_inc <= '1';                                               cp_ld_target <= '1';
+            when sFetch_absolute_data =>                    cp_pc_inc <= '1';                                               cp_ld_target <= '1';  cp_address_selector <= "001";
 
             when sFetch_absoluteX_ABL =>                    cp_pc_inc <= '1'; cp_regABL_ld <= '1';
             when sFetch_absoluteX_ABH =>                    cp_pc_inc <= '1';                      cp_regABH_ld <= '1';
-            when sFetch_absoluteX_data =>                   cp_pc_inc <= '1';                                               cp_ld_target <= '1';
+            when sFetch_absoluteX_data =>                   cp_pc_inc <= '1';                                               cp_ld_target <= '1';  cp_address_selector <= "001";
 
             when sFetch_absoluteY_ABL =>                    cp_pc_inc <= '1'; cp_regABL_ld <= '1';
             when sFetch_absoluteY_ABH =>                    cp_pc_inc <= '1';                      cp_regABH_ld <= '1';
-            when sFetch_absoluteY_data =>                   cp_pc_inc <= '1';                                               cp_ld_target <= '1';
+            when sFetch_absoluteY_data =>                   cp_pc_inc <= '1';                                               cp_ld_target <= '1';  cp_address_selector <= "001";
 
             when sReset => cp_pc_inc <= '1';
 

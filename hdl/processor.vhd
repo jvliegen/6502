@@ -58,7 +58,8 @@ architecture Behavioural of processor is
     signal cp_regABH_clr : STD_LOGIC;
     
     
-    
+    -- STACK POINTER
+    signal stack_pointer : STD_LOGIC_VECTOR(7 downto 0);
     
     -- PROGRAM COUNTER
     signal program_counter_i : STD_LOGIC_VECTOR(15 downto 0);
@@ -72,6 +73,16 @@ architecture Behavioural of processor is
     signal regABH : STD_LOGIC_VECTOR(7 downto 0);
     signal regABL : STD_LOGIC_VECTOR(7 downto 0);
 
+    -- ADDRESS MUXES
+    signal cp_address_selector : STD_LOGIC_VECTOR(2 downto 0);
+    signal address_MSH, address_LSH : STD_LOGIC_VECTOR(7 downto 0);
+
+    -- ALU
+    signal ALU_Z : STD_LOGIC_VECTOR(15 downto 0);
+
+    -- IDL
+    signal IDL_Z : STD_LOGIC_VECTOR(15 downto 0);
+
 begin
 
     -------------------------------------------------------------------------------
@@ -81,7 +92,43 @@ begin
     clock_i <= clock;
     from_memory <= data;
     
-    address <= program_counter_i;
+    address <= address_MSH & address_LSH;
+
+
+    -------------------------------------------------------------------------------
+    -- ADDRESS MUXES
+    -------------------------------------------------------------------------------    
+    PMUX_ADDRESS: process(cp_address_selector, program_counter_i, from_memory, ALU_Z, IDL_Z, stack_pointer)
+    begin
+        case cp_address_selector is
+            when "000" => 
+                address_MSH <= program_counter_i(15 downto 8);
+                address_LSH <= program_counter_i(7 downto 0);
+            when "001" => 
+                -- address_MSH <= regABH;
+                -- address_LSH <= regABL;
+                address_MSH <= x"00";
+                address_LSH <= from_memory;
+            when "010" => 
+                address_MSH <= ALU_Z(15 downto 8);
+                address_LSH <= ALU_Z(7 downto 0);
+            when "011" => 
+                address_MSH <= IDL_Z(15 downto 8);
+                address_LSH <= IDL_Z(7 downto 0);
+            when "100" => 
+                address_MSH <= program_counter_i(15 downto 8);
+                address_LSH <= stack_pointer;
+            when "101" => 
+                address_MSH <= regABH;
+                address_LSH <= stack_pointer;
+            when "110" => 
+                address_MSH <= ALU_Z(15 downto 8);
+                address_LSH <= stack_pointer;
+            when others => 
+                address_MSH <= IDL_Z(15 downto 8);
+                address_LSH <= stack_pointer;
+        end case;
+    end process;
 
     -------------------------------------------------------------------------------
     -- PROGRAM COUNTER
@@ -101,6 +148,7 @@ begin
     cp_regABL_ld <= control_signals(2);
     cp_regABH_ld <= control_signals(3);
     cp_regABH_clr <= control_signals(4);
+    cp_address_selector <= control_signals(31 downto 29);
 
     -------------------------------------------------------------------------------
     -- REGISTERS
