@@ -12,5 +12,6 @@ A9 LDA immediate
 00                   |
 a9 LDA immediate   <-+
 60
-a9 LDA immediate
-61
+6A ROR A
+38 SEC
+6A ROR A

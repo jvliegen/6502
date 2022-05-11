@@ -27,7 +27,8 @@ end entity decoder;
 architecture Behavioural of decoder is
 
     type TMNEMONIC is (XXX,
-        LDA_immediate, LDA_zeropage, LDA_zeropageX, LDA_absolute, LDA_absoluteX, LDA_absoluteY, JMP_absolute
+        LDA_immediate, LDA_zeropage, LDA_zeropageX, LDA_absolute, LDA_absoluteX, LDA_absoluteY, JMP_absolute,
+        ROR_A, SEC
     );
     signal mnemonic, curOpCode : TMNEMONIC;
 
@@ -49,16 +50,24 @@ architecture Behavioural of decoder is
         sFetch_absoluteX_ABL, sFetch_absoluteX_ABH, sFetch_absoluteX_data,
         sFetch_absoluteY_ABL, sFetch_absoluteY_ABH, sFetch_absoluteY_data,
         sFetch_jump_absolute_fetchABL, sFetch_jump_absolute_fetchABH,
+        sROR_a,
+        sSEC,
         sTrap
     );
     signal curState, nxtState : Tstates;
 
     signal cp_pc_inc : STD_LOGIC;
+    signal cp_pc_inc_instr : STD_LOGIC;
+    signal cp_pc_inc_with_fetch : STD_LOGIC;
     signal cp_pc_ld_lsh : STD_LOGIC;
     signal cp_pc_ld : STD_LOGIC;
     signal cp_regA_ld : STD_LOGIC;
     signal cp_regABL_ld : STD_LOGIC;
     signal cp_address_selector : STD_LOGIC_VECTOR(2 downto 0);
+    signal cp_regA_ld_rora : STD_LOGIC;
+    signal cp_Cflag_set : STD_LOGIC;
+
+    signal allow_pc_inc_with_fetch : STD_LOGIC;
 
 begin
 
@@ -68,8 +77,13 @@ begin
     sys_reset_n_i <= sys_reset_n;
     clock_i <= clock;
     A_i <= A;
-    control_signals <= cp_address_selector & '0' & x"00000" & "0000" & cp_pc_ld & cp_pc_ld_lsh & cp_regA_ld & cp_pc_inc;
+    control_signals <= cp_address_selector & '0' & x"00000" & "00" & cp_Cflag_set & cp_regA_ld_rora & cp_pc_ld & cp_pc_ld_lsh & cp_regA_ld & cp_pc_inc;
 
+    -- Sometimes it's interesting if the automatic INC of the PC is not doen
+    -- while doing the fetch. This if for operations that only require 1 byte.
+    -- The automatic INC can thusly be overriden.
+    -- Flaging this happens in the decoder (allow_pc_inc_with_fetch)
+    cp_pc_inc <= (cp_pc_inc_with_fetch and allow_pc_inc_with_fetch) or cp_pc_inc_instr;
 
     -------------------------------------------------------------------------------
     -- DECODER
@@ -77,6 +91,7 @@ begin
     -------------------------------------------------------------------------------
     PMUX: process(A_i)
     begin
+        allow_pc_inc_with_fetch <= '1';
         case A_i is
             -- LDA: Load Accumulator with Memory
             when x"A9" => mnemonic <= LDA_immediate; target <= x"01";
@@ -85,8 +100,13 @@ begin
             when x"AD" => mnemonic <= LDA_absolute; target <= x"01";
             when x"BD" => mnemonic <= LDA_absoluteX; target <= x"01";
             when x"B9" => mnemonic <= LDA_absoluteY; target <= x"01";
-
             when x"4C" => mnemonic <= JMP_absolute; target <= x"08";
+            when x"6A" => mnemonic <= ROR_A; target <= x"08"; allow_pc_inc_with_fetch <= '0';
+
+
+            when x"38" => mnemonic <= SEC; allow_pc_inc_with_fetch <= '0';
+
+
             when others => mnemonic <= XXX; target <= x"00";
         end case;
     end process;
@@ -115,10 +135,13 @@ begin
                     nxtState <= sFetch_absoluteX_ABL;
                 elsif mnemonic = LDA_absoluteY then 
                     nxtState <= sFetch_absoluteY_ABL;
-                
                 elsif mnemonic = JMP_absolute then 
                     nxtState <= sFetch_jump_absolute_fetchABL;
-                
+                elsif mnemonic = ROR_A then 
+                    nxtState <= sROR_a;                    
+
+                elsif mnemonic = SEC then 
+                    nxtState <= sSEC;
                 else
                     nxtState <= sTrap;
                 end if;
@@ -146,6 +169,10 @@ begin
             when sFetch_jump_absolute_fetchABL => nxtState <= sFetch_jump_absolute_fetchABH;
             when sFetch_jump_absolute_fetchABH => nxtState <= sFetch_instruction;
 
+            when sROR_a => nxtState <= sFetch_instruction;
+            
+            when sSEC => nxtState <= sFetch_instruction;
+
 
             when others => nxtState <= sTrap;
         end case;
@@ -154,47 +181,54 @@ begin
     -- FSM OUTPUT FUNCTION
     P_FSM_OF_nxt: process(curState)
     begin
-        cp_pc_inc <= '0';
+        cp_pc_inc_instr <= '0';
+        cp_pc_inc_with_fetch <= '0';
         cp_regABL_ld <= '0';
         cp_regA_ld <= '0';
         cp_address_selector <= "000";
         cp_pc_ld_lsh <= '0';
         cp_pc_ld <= '0';
+        cp_regA_ld_rora <= '0';
+        cp_Cflag_set <= '0';
         case curState is
 
-            when sFetch_instruction =>                      cp_pc_inc <= '1';
+            when sFetch_instruction =>                      cp_pc_inc_with_fetch <= '1';
 
-            when sFetch_immediate =>                        cp_pc_inc <= '1'; cp_regA_ld <= '1';
+            when sFetch_immediate =>                        cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';
 
 
                                                                               -- here the address source is set to ABH and ABL, so it's ready 
                                                                               -- at the next cycle for loading
-            when sFetch_zeropage_ABL_andClearABH =>         cp_pc_inc <= '0'; cp_address_selector <= "001";
+            when sFetch_zeropage_ABL_andClearABH =>         cp_pc_inc_instr <= '0'; cp_address_selector <= "001";
                                                                               -- while the indirect memory is stored, the address source is
                                                                               -- set again to the PC to be able to fetch in the next clock cycle
-            when sFetch_zeropage_data =>                    cp_pc_inc <= '1'; cp_regA_ld <= '1';
+            when sFetch_zeropage_data =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';
             
 
 
-            when sFetch_zeropageX_ABLplusX_andClearABH =>   cp_pc_inc <= '0'; cp_address_selector <= "001";
-            when sFetch_zeropageX_data =>                   cp_pc_inc <= '1'; cp_regA_ld <= '1';
+            when sFetch_zeropageX_ABLplusX_andClearABH =>   cp_pc_inc_instr <= '0'; cp_address_selector <= "001";
+            when sFetch_zeropageX_data =>                   cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';
             
-            when sFetch_absolute_ABL =>                     cp_pc_inc <= '1';
-            when sFetch_absolute_ABH =>                     cp_pc_inc <= '1';                      
-            when sFetch_absolute_data =>                    cp_pc_inc <= '1'; cp_regA_ld <= '1';  cp_address_selector <= "001";
+            when sFetch_absolute_ABL =>                     cp_pc_inc_instr <= '1';
+            when sFetch_absolute_ABH =>                     cp_pc_inc_instr <= '1';                      
+            when sFetch_absolute_data =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';  cp_address_selector <= "001";
 
-            when sFetch_absoluteX_ABL =>                    cp_pc_inc <= '1';
-            when sFetch_absoluteX_ABH =>                    cp_pc_inc <= '1';                      
-            when sFetch_absoluteX_data =>                   cp_pc_inc <= '1'; cp_regA_ld <= '1';  cp_address_selector <= "001";
+            when sFetch_absoluteX_ABL =>                    cp_pc_inc_instr <= '1';
+            when sFetch_absoluteX_ABH =>                    cp_pc_inc_instr <= '1';                      
+            when sFetch_absoluteX_data =>                   cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';  cp_address_selector <= "001";
 
-            when sFetch_absoluteY_ABL =>                    cp_pc_inc <= '1';
-            when sFetch_absoluteY_ABH =>                    cp_pc_inc <= '1';                      
-            when sFetch_absoluteY_data =>                   cp_pc_inc <= '1'; cp_regA_ld <= '1';  cp_address_selector <= "001";
+            when sFetch_absoluteY_ABL =>                    cp_pc_inc_instr <= '1';
+            when sFetch_absoluteY_ABH =>                    cp_pc_inc_instr <= '1';                      
+            when sFetch_absoluteY_data =>                   cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';  cp_address_selector <= "001";
 
-            when sFetch_jump_absolute_fetchABL =>           cp_pc_inc <= '1'; cp_pc_ld_lsh <= '1';
+            when sFetch_jump_absolute_fetchABL =>           cp_pc_inc_instr <= '1'; cp_pc_ld_lsh <= '1';
             when sFetch_jump_absolute_fetchABH =>           cp_pc_ld <= '1'; cp_address_selector <= "010";
 
-            when sReset => cp_pc_inc <= '1';
+            
+            when sROR_a =>                                  cp_pc_inc_instr <= '1'; cp_regA_ld_rora <= '1';
+            when sSEC =>                                    cp_pc_inc_instr <= '1'; cp_Cflag_set <= '1';
+
+            when sReset =>                                  cp_pc_inc_instr <= '1';
 
             -- also for sTrap
             when others => 

@@ -58,6 +58,8 @@ architecture Behavioural of processor is
     signal cp_pc_ld : STD_LOGIC;
     signal cp_regA_ld : STD_LOGIC;
     signal cp_regABL_ld : STD_LOGIC;
+    signal cp_regA_ld_rora : STD_LOGIC;
+    signal cp_Cflag_set : STD_LOGIC;
     
     
     -- STACK POINTER
@@ -74,6 +76,13 @@ architecture Behavioural of processor is
     -- REGISTERS
     signal regA : STD_LOGIC_VECTOR(7 downto 0);
     signal regABL : STD_LOGIC_VECTOR(7 downto 0);
+    signal flags : STD_LOGIC_VECTOR(5 downto 0);
+    alias N_flag : STD_LOGIC is flags(5);
+    alias Z_flag : STD_LOGIC is flags(4);
+    alias C_flag : STD_LOGIC is flags(3);
+    alias I_flag : STD_LOGIC is flags(2);
+    alias D_flag : STD_LOGIC is flags(1);
+    alias V_flag : STD_LOGIC is flags(0);
 
     -- ADDRESS MUXES
     signal cp_address_selector : STD_LOGIC_VECTOR(2 downto 0);
@@ -163,6 +172,8 @@ begin
     cp_pc_ld <= control_signals(3);
     cp_regA_ld <= control_signals(1);
     cp_regABL_ld <= control_signals(2);
+    cp_regA_ld_rora <= control_signals(4);
+    cp_Cflag_set <= control_signals(5);
 
     cp_address_selector <= control_signals(31 downto 29);
 
@@ -174,13 +185,21 @@ begin
         if sys_reset_n_i = '0' then 
             regA <= x"00";
             regABL <= x"00";
+            flags <= "000000";
         elsif rising_edge(clock_i) then 
             if cp_regA_ld = '1' then 
                 regA <= from_memory;
+            elsif cp_regA_ld_rora = '1' then 
+                regA <= C_flag & regA(7 downto 1);
+                C_flag <= regA(0);
             end if;
 
             if cp_regABL_ld = '1' then 
                 regABL <= from_memory;
+            end if;
+
+            if cp_Cflag_set = '1' then 
+                C_flag <= '1';
             end if;
 
         end if;
