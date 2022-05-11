@@ -28,7 +28,7 @@ architecture Behavioural of decoder is
 
     type TMNEMONIC is (XXX,
         LDA_immediate, LDA_zeropage, LDA_zeropageX, LDA_absolute, LDA_absoluteX, LDA_absoluteY, JMP_absolute,
-        ROR_A, SEC
+        ROR_A, SEC, SED, SEI
     );
     signal mnemonic, curOpCode : TMNEMONIC;
 
@@ -51,7 +51,7 @@ architecture Behavioural of decoder is
         sFetch_absoluteY_ABL, sFetch_absoluteY_ABH, sFetch_absoluteY_data,
         sFetch_jump_absolute_fetchABL, sFetch_jump_absolute_fetchABH,
         sROR_a,
-        sSEC,
+        sSEC, sSED, sSEI,
         sTrap
     );
     signal curState, nxtState : Tstates;
@@ -66,6 +66,8 @@ architecture Behavioural of decoder is
     signal cp_address_selector : STD_LOGIC_VECTOR(2 downto 0);
     signal cp_regA_ld_rora : STD_LOGIC;
     signal cp_Cflag_set : STD_LOGIC;
+    signal cp_Dflag_set : STD_LOGIC;
+    signal cp_Iflag_set : STD_LOGIC;
 
     signal allow_pc_inc_with_fetch : STD_LOGIC;
 
@@ -77,7 +79,7 @@ begin
     sys_reset_n_i <= sys_reset_n;
     clock_i <= clock;
     A_i <= A;
-    control_signals <= cp_address_selector & '0' & x"00000" & "00" & cp_Cflag_set & cp_regA_ld_rora & cp_pc_ld & cp_pc_ld_lsh & cp_regA_ld & cp_pc_inc;
+    control_signals <= cp_address_selector & '0' & x"00000" & cp_Iflag_set & cp_Dflag_set & cp_Cflag_set & cp_regA_ld_rora & cp_pc_ld & cp_pc_ld_lsh & cp_regA_ld & cp_pc_inc;
 
     -- Sometimes it's interesting if the automatic INC of the PC is not doen
     -- while doing the fetch. This if for operations that only require 1 byte.
@@ -101,10 +103,11 @@ begin
             when x"BD" => mnemonic <= LDA_absoluteX; target <= x"01";
             when x"B9" => mnemonic <= LDA_absoluteY; target <= x"01";
             when x"4C" => mnemonic <= JMP_absolute; target <= x"08";
+
             when x"6A" => mnemonic <= ROR_A; target <= x"08"; allow_pc_inc_with_fetch <= '0';
-
-
             when x"38" => mnemonic <= SEC; allow_pc_inc_with_fetch <= '0';
+            when x"F8" => mnemonic <= SED; allow_pc_inc_with_fetch <= '0';
+            when x"78" => mnemonic <= SEI; allow_pc_inc_with_fetch <= '0';
 
 
             when others => mnemonic <= XXX; target <= x"00";
@@ -142,6 +145,10 @@ begin
 
                 elsif mnemonic = SEC then 
                     nxtState <= sSEC;
+                elsif mnemonic = SED then 
+                    nxtState <= sSED;
+                elsif mnemonic = SEI then 
+                    nxtState <= sSEI;
                 else
                     nxtState <= sTrap;
                 end if;
@@ -170,8 +177,9 @@ begin
             when sFetch_jump_absolute_fetchABH => nxtState <= sFetch_instruction;
 
             when sROR_a => nxtState <= sFetch_instruction;
-            
             when sSEC => nxtState <= sFetch_instruction;
+            when sSED => nxtState <= sFetch_instruction;
+            when sSEI => nxtState <= sFetch_instruction;
 
 
             when others => nxtState <= sTrap;
@@ -227,6 +235,8 @@ begin
             
             when sROR_a =>                                  cp_pc_inc_instr <= '1'; cp_regA_ld_rora <= '1';
             when sSEC =>                                    cp_pc_inc_instr <= '1'; cp_Cflag_set <= '1';
+            when sSED =>                                    cp_pc_inc_instr <= '1'; cp_Dflag_set <= '1';
+            when sSEI =>                                    cp_pc_inc_instr <= '1'; cp_Iflag_set <= '1';
 
             when sReset =>                                  cp_pc_inc_instr <= '1';
 

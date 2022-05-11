@@ -15,3 +15,8 @@ a9 LDA immediate   <-+
 6A ROR A
 38 SEC
 6A ROR A
+F8 SED
+78 SEI
+A9 LDA immediate
+61
+6A ROR A

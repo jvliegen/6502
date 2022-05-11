@@ -60,6 +60,8 @@ architecture Behavioural of processor is
     signal cp_regABL_ld : STD_LOGIC;
     signal cp_regA_ld_rora : STD_LOGIC;
     signal cp_Cflag_set : STD_LOGIC;
+    signal cp_Dflag_set : STD_LOGIC;
+    signal cp_Iflag_set : STD_LOGIC;
     
     
     -- STACK POINTER
@@ -174,6 +176,8 @@ begin
     cp_regABL_ld <= control_signals(2);
     cp_regA_ld_rora <= control_signals(4);
     cp_Cflag_set <= control_signals(5);
+    cp_Dflag_set <= control_signals(6);
+    cp_Iflag_set <= control_signals(7);
 
     cp_address_selector <= control_signals(31 downto 29);
 
@@ -200,6 +204,14 @@ begin
 
             if cp_Cflag_set = '1' then 
                 C_flag <= '1';
+            end if;
+
+            if cp_Dflag_set = '1' then 
+                D_flag <= '1';
+            end if;
+
+            if cp_Iflag_set = '1' then 
+                I_flag <= '1';
             end if;
 
         end if;
