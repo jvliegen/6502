@@ -20,3 +20,9 @@ F8 SED
 A9 LDA immediate
 61
 6A ROR A
+18 CLC
+58 CLI
+D8 CLD
+B8 CLV
+A9 LDA immediate
+62

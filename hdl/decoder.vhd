@@ -28,7 +28,7 @@ architecture Behavioural of decoder is
 
     type TMNEMONIC is (XXX,
         LDA_immediate, LDA_zeropage, LDA_zeropageX, LDA_absolute, LDA_absoluteX, LDA_absoluteY, JMP_absolute,
-        ROR_A, SEC, SED, SEI
+        ROR_A, SEC, SED, SEI, CLC, CLD, CLI, CLV
     );
     signal mnemonic, curOpCode : TMNEMONIC;
 
@@ -52,6 +52,8 @@ architecture Behavioural of decoder is
         sFetch_jump_absolute_fetchABL, sFetch_jump_absolute_fetchABH,
         sROR_a,
         sSEC, sSED, sSEI,
+        sCLC, sCLD, sCLI, sCLV,
+
         sTrap
     );
     signal curState, nxtState : Tstates;
@@ -69,6 +71,11 @@ architecture Behavioural of decoder is
     signal cp_Dflag_set : STD_LOGIC;
     signal cp_Iflag_set : STD_LOGIC;
 
+    signal cp_Cflag_reset : STD_LOGIC;
+    signal cp_Dflag_reset : STD_LOGIC;
+    signal cp_Iflag_reset : STD_LOGIC;
+    signal cp_Vflag_reset : STD_LOGIC;
+
     signal allow_pc_inc_with_fetch : STD_LOGIC;
 
 begin
@@ -79,7 +86,7 @@ begin
     sys_reset_n_i <= sys_reset_n;
     clock_i <= clock;
     A_i <= A;
-    control_signals <= cp_address_selector & '0' & x"00000" & cp_Iflag_set & cp_Dflag_set & cp_Cflag_set & cp_regA_ld_rora & cp_pc_ld & cp_pc_ld_lsh & cp_regA_ld & cp_pc_inc;
+    control_signals <= cp_address_selector & '0' & x"0000" & cp_Vflag_reset & cp_Iflag_reset & cp_Dflag_reset & cp_Cflag_reset & cp_Iflag_set & cp_Dflag_set & cp_Cflag_set & cp_regA_ld_rora & cp_pc_ld & cp_pc_ld_lsh & cp_regA_ld & cp_pc_inc;
 
     -- Sometimes it's interesting if the automatic INC of the PC is not doen
     -- while doing the fetch. This if for operations that only require 1 byte.
@@ -108,6 +115,11 @@ begin
             when x"38" => mnemonic <= SEC; allow_pc_inc_with_fetch <= '0';
             when x"F8" => mnemonic <= SED; allow_pc_inc_with_fetch <= '0';
             when x"78" => mnemonic <= SEI; allow_pc_inc_with_fetch <= '0';
+
+            when x"18" => mnemonic <= CLC; allow_pc_inc_with_fetch <= '0';
+            when x"D8" => mnemonic <= CLD; allow_pc_inc_with_fetch <= '0';
+            when x"58" => mnemonic <= CLI; allow_pc_inc_with_fetch <= '0';
+            when x"B8" => mnemonic <= CLV; allow_pc_inc_with_fetch <= '0';
 
 
             when others => mnemonic <= XXX; target <= x"00";
@@ -149,6 +161,16 @@ begin
                     nxtState <= sSED;
                 elsif mnemonic = SEI then 
                     nxtState <= sSEI;
+
+                elsif mnemonic = CLC then 
+                    nxtState <= sCLC;
+                elsif mnemonic = CLD then 
+                    nxtState <= sCLD;
+                elsif mnemonic = CLI then 
+                    nxtState <= sCLI;
+                elsif mnemonic = CLV then 
+                    nxtState <= sCLV;
+
                 else
                     nxtState <= sTrap;
                 end if;
@@ -181,6 +203,11 @@ begin
             when sSED => nxtState <= sFetch_instruction;
             when sSEI => nxtState <= sFetch_instruction;
 
+            when sCLC => nxtState <= sFetch_instruction;
+            when sCLD => nxtState <= sFetch_instruction;
+            when sCLI => nxtState <= sFetch_instruction;
+            when sCLV => nxtState <= sFetch_instruction;
+
 
             when others => nxtState <= sTrap;
         end case;
@@ -198,6 +225,13 @@ begin
         cp_pc_ld <= '0';
         cp_regA_ld_rora <= '0';
         cp_Cflag_set <= '0';
+        cp_Dflag_set <= '0';
+        cp_Iflag_set <= '0';
+        cp_Cflag_reset <= '0';
+        cp_Dflag_reset <= '0';
+        cp_Iflag_reset <= '0';
+        cp_Vflag_reset <= '0';
+
         case curState is
 
             when sFetch_instruction =>                      cp_pc_inc_with_fetch <= '1';
@@ -237,6 +271,10 @@ begin
             when sSEC =>                                    cp_pc_inc_instr <= '1'; cp_Cflag_set <= '1';
             when sSED =>                                    cp_pc_inc_instr <= '1'; cp_Dflag_set <= '1';
             when sSEI =>                                    cp_pc_inc_instr <= '1'; cp_Iflag_set <= '1';
+            when sCLC =>                                    cp_pc_inc_instr <= '1'; cp_Cflag_reset <= '1';
+            when sCLD =>                                    cp_pc_inc_instr <= '1'; cp_Dflag_reset <= '1';
+            when sCLI =>                                    cp_pc_inc_instr <= '1'; cp_Iflag_reset <= '1';
+            when sCLV =>                                    cp_pc_inc_instr <= '1'; cp_Vflag_reset <= '1';
 
             when sReset =>                                  cp_pc_inc_instr <= '1';
 
