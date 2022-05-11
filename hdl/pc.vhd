@@ -20,6 +20,9 @@ entity pc is
         sys_reset_n : in STD_LOGIC;
         clock : in STD_LOGIC;
         inc : in STD_LOGIC;
+        ld_LSH : in STD_LOGIC;
+        ld_MSH : in STD_LOGIC;
+        data_half : in STD_LOGIC_VECTOR(7 downto 0);
         Z : out STD_LOGIC_VECTOR(15 downto 0)
     );
 end entity pc;
@@ -29,6 +32,9 @@ architecture Behavioural of pc is
     signal sys_reset_n_i : STD_LOGIC;
     signal clock_i : STD_LOGIC;
     signal inc_i : STD_LOGIC;
+    signal ld_LSH_i : STD_LOGIC;
+    signal ld_MSH_i : STD_LOGIC;
+    signal data_half_i : STD_LOGIC_VECTOR(7 downto 0);
     signal program_counter, program_counter_incremented, ripple_carry : STD_LOGIC_VECTOR(15 downto 0);
 
 begin
@@ -39,6 +45,9 @@ begin
     sys_reset_n_i <= sys_reset_n;
     clock_i <= clock;
     inc_i <= inc;
+    ld_LSH_i <= ld_LSH;
+    ld_MSH_i <= ld_MSH;
+    data_half_i <= data_half;
     Z <= program_counter;
 
     -------------------------------------------------------------------------------
@@ -51,6 +60,10 @@ begin
         elsif rising_edge(clock_i) then 
             if inc_i = '1' then 
                 program_counter <= program_counter_incremented;
+            elsif ld_LSH_i = '1' then 
+                program_counter(7 downto 0) <= data_half_i;
+            elsif ld_MSH_i = '1' then 
+                program_counter(15 downto 8) <= data_half_i;
             end if;
         end if;
     end process;

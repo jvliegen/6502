@@ -1,9 +1,16 @@
-a9
+a9 LDA immediate
 57
-A5
-08
-A9
+A5 LDA zeropage
+09
+A9 LDA immediate
 59
-00
-00
-58
+4C JMP absolute
+0C
+00 ------------------+
+58                   |
+00                   |
+00                   |
+a9 LDA immediate   <-+
+60
+a9 LDA immediate
+61

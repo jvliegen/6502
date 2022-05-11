@@ -31,6 +31,9 @@ architecture Behavioural of processor is
             sys_reset_n : in STD_LOGIC;
             clock : in STD_LOGIC;
             inc : in STD_LOGIC;
+            ld_LSH : in STD_LOGIC;
+            ld_MSH : in STD_LOGIC;
+            data_half : in STD_LOGIC_VECTOR(7 downto 0);
             Z : out STD_LOGIC_VECTOR(15 downto 0)
         );
     end component;
@@ -52,17 +55,17 @@ architecture Behavioural of processor is
 
     -- CONTROL PATH
     signal cp_pc_inc : STD_LOGIC;
+    signal cp_pc_ld : STD_LOGIC;
     signal cp_regA_ld : STD_LOGIC;
     signal cp_regABL_ld : STD_LOGIC;
-    signal cp_regABH_ld : STD_LOGIC;
-    signal cp_regABH_clr : STD_LOGIC;
     
     
     -- STACK POINTER
     signal stack_pointer : STD_LOGIC_VECTOR(7 downto 0);
     
     -- PROGRAM COUNTER
-    signal program_counter_i : STD_LOGIC_VECTOR(15 downto 0);
+    signal program_counter, program_counter_incremented, ripple_carry : STD_LOGIC_VECTOR(15 downto 0);
+    signal adder2_b, adder2_ripple_carry, adder2_S : STD_LOGIC_VECTOR(15 downto 0);
     
     -- DECODER
     signal from_memory : STD_LOGIC_VECTOR(7 downto 0);
@@ -70,7 +73,6 @@ architecture Behavioural of processor is
     
     -- REGISTERS
     signal regA : STD_LOGIC_VECTOR(7 downto 0);
-    signal regABH : STD_LOGIC_VECTOR(7 downto 0);
     signal regABL : STD_LOGIC_VECTOR(7 downto 0);
 
     -- ADDRESS MUXES
@@ -92,38 +94,40 @@ begin
     clock_i <= clock;
     from_memory <= data;
     
-    address <= address_MSH & address_LSH;
+    address <= address_i;
+    address_i <= address_MSH & address_LSH;
 
 
     -------------------------------------------------------------------------------
     -- ADDRESS MUXES
     -------------------------------------------------------------------------------    
-    PMUX_ADDRESS: process(cp_address_selector, program_counter_i, from_memory, ALU_Z, IDL_Z, stack_pointer)
+    PMUX_ADDRESS: process(cp_address_selector, program_counter, from_memory, regABL, ALU_Z, IDL_Z, stack_pointer)
     begin
         case cp_address_selector is
             when "000" => 
-                address_MSH <= program_counter_i(15 downto 8);
-                address_LSH <= program_counter_i(7 downto 0);
+                address_MSH <= program_counter(15 downto 8);
+                address_LSH <= program_counter(7 downto 0);
             when "001" => 
-                -- address_MSH <= regABH;
-                -- address_LSH <= regABL;
                 address_MSH <= x"00";
                 address_LSH <= from_memory;
             when "010" => 
-                address_MSH <= ALU_Z(15 downto 8);
-                address_LSH <= ALU_Z(7 downto 0);
-            when "011" => 
-                address_MSH <= IDL_Z(15 downto 8);
-                address_LSH <= IDL_Z(7 downto 0);
-            when "100" => 
-                address_MSH <= program_counter_i(15 downto 8);
-                address_LSH <= stack_pointer;
-            when "101" => 
-                address_MSH <= regABH;
-                address_LSH <= stack_pointer;
-            when "110" => 
-                address_MSH <= ALU_Z(15 downto 8);
-                address_LSH <= stack_pointer;
+                address_MSH <= from_memory;
+                address_LSH <= regABL;
+            -- when "010" => 
+            --     address_MSH <= ALU_Z(15 downto 8);
+            --     address_LSH <= ALU_Z(7 downto 0);
+            -- when "011" => 
+            --     address_MSH <= IDL_Z(15 downto 8);
+            --     address_LSH <= IDL_Z(7 downto 0);
+            -- when "100" => 
+            --     address_MSH <= program_counter(15 downto 8);
+            --     address_LSH <= stack_pointer;
+            -- when "101" => 
+            --     address_MSH <= x"00";
+            --     address_LSH <= stack_pointer;
+            -- when "110" => 
+            --     address_MSH <= ALU_Z(15 downto 8);
+            --     address_LSH <= stack_pointer;
             when others => 
                 address_MSH <= IDL_Z(15 downto 8);
                 address_LSH <= stack_pointer;
@@ -133,9 +137,22 @@ begin
     -------------------------------------------------------------------------------
     -- PROGRAM COUNTER
     -------------------------------------------------------------------------------
-    pc_inst00: component pc port map( sys_reset_n => sys_reset_n_i, clock => clock_i,
-                                      inc => cp_pc_inc, Z => program_counter_i);
+    -- pc_inst00: component pc port map( sys_reset_n => sys_reset_n_i, clock => clock_i,
+    --                                   inc => cp_pc_inc, ld_LSH => cp_pc_ld_msh, ld_MSH => cp_pc_ld_lsh, 
+    --                                   data_half => from_memory, Z => program_counter_i);
 
+    PREG_PC: process(sys_reset_n_i, clock_i)
+    begin
+        if sys_reset_n_i = '0' then 
+            program_counter <= x"0000";
+        elsif rising_edge(clock_i) then 
+            if cp_pc_inc = '1' then 
+                program_counter <= program_counter_incremented;
+            elsif cp_pc_ld = '1' then 
+                program_counter <= adder2_S;
+            end if;
+        end if;
+    end process;
 
     -------------------------------------------------------------------------------
     -- DECODER
@@ -143,11 +160,10 @@ begin
     decoder_inst00: component decoder port map( sys_reset_n => sys_reset_n_i, clock => clock_i, A => from_memory, control_signals => control_signals);
     
     cp_pc_inc <= control_signals(0);
+    cp_pc_ld <= control_signals(3);
     cp_regA_ld <= control_signals(1);
-
     cp_regABL_ld <= control_signals(2);
-    cp_regABH_ld <= control_signals(3);
-    cp_regABH_clr <= control_signals(4);
+
     cp_address_selector <= control_signals(31 downto 29);
 
     -------------------------------------------------------------------------------
@@ -158,16 +174,9 @@ begin
         if sys_reset_n_i = '0' then 
             regA <= x"00";
             regABL <= x"00";
-            regABH <= x"00";
         elsif rising_edge(clock_i) then 
             if cp_regA_ld = '1' then 
                 regA <= from_memory;
-            end if;
-
-            if cp_regABH_clr = '1' then 
-                regABH <= x"00";
-            elsif cp_regABH_ld = '1' then 
-                regABH <= from_memory;
             end if;
 
             if cp_regABL_ld = '1' then 
@@ -177,6 +186,46 @@ begin
         end if;
     end process;
 
-        
+    
+    -------------------------------------------------------------------------------
+    -- ADDER
+    -------------------------------------------------------------------------------
+    program_counter_incremented(0) <= not(program_counter(0));                      ripple_carry(1) <= program_counter(0);
+    program_counter_incremented(1) <= program_counter(1) XOR ripple_carry(1);       ripple_carry(2) <= program_counter(1) AND ripple_carry(1);
+    program_counter_incremented(2) <= program_counter(2) XOR ripple_carry(2);       ripple_carry(3) <= program_counter(2) AND ripple_carry(2);
+    program_counter_incremented(3) <= program_counter(3) XOR ripple_carry(3);       ripple_carry(4) <= program_counter(3) AND ripple_carry(3);
+    program_counter_incremented(4) <= program_counter(4) XOR ripple_carry(4);       ripple_carry(5) <= program_counter(4) AND ripple_carry(4);
+    program_counter_incremented(5) <= program_counter(5) XOR ripple_carry(5);       ripple_carry(6) <= program_counter(5) AND ripple_carry(5);
+    program_counter_incremented(6) <= program_counter(6) XOR ripple_carry(6);       ripple_carry(7) <= program_counter(6) AND ripple_carry(6);
+    program_counter_incremented(7) <= program_counter(7) XOR ripple_carry(7);       ripple_carry(8) <= program_counter(7) AND ripple_carry(7);
+    program_counter_incremented(8) <= program_counter(8) XOR ripple_carry(8);       ripple_carry(9) <= program_counter(8) AND ripple_carry(8);
+    program_counter_incremented(9) <= program_counter(9) XOR ripple_carry(9);       ripple_carry(10) <= program_counter(9) AND ripple_carry(9);
+    program_counter_incremented(10) <= program_counter(10) XOR ripple_carry(10);    ripple_carry(11) <= program_counter(10) AND ripple_carry(10);
+    program_counter_incremented(11) <= program_counter(11) XOR ripple_carry(11);    ripple_carry(12) <= program_counter(11) AND ripple_carry(11);
+    program_counter_incremented(12) <= program_counter(12) XOR ripple_carry(12);    ripple_carry(13) <= program_counter(12) AND ripple_carry(12);
+    program_counter_incremented(13) <= program_counter(13) XOR ripple_carry(13);    ripple_carry(14) <= program_counter(13) AND ripple_carry(13);
+    program_counter_incremented(14) <= program_counter(14) XOR ripple_carry(14);    ripple_carry(15) <= program_counter(14) AND ripple_carry(14);
+    program_counter_incremented(15) <= program_counter(15) XOR ripple_carry(15);
+
+    adder2_B <= from_memory & regABL;
+    adder2_S(0) <= not(adder2_B(0));                             adder2_ripple_carry(1) <= adder2_B(0);
+    adder2_S(1) <= adder2_B(1) XOR adder2_ripple_carry(1);       adder2_ripple_carry(2) <= adder2_B(1) AND adder2_ripple_carry(1);
+    adder2_S(2) <= adder2_B(2) XOR adder2_ripple_carry(2);       adder2_ripple_carry(3) <= adder2_B(2) AND adder2_ripple_carry(2);
+    adder2_S(3) <= adder2_B(3) XOR adder2_ripple_carry(3);       adder2_ripple_carry(4) <= adder2_B(3) AND adder2_ripple_carry(3);
+    adder2_S(4) <= adder2_B(4) XOR adder2_ripple_carry(4);       adder2_ripple_carry(5) <= adder2_B(4) AND adder2_ripple_carry(4);
+    adder2_S(5) <= adder2_B(5) XOR adder2_ripple_carry(5);       adder2_ripple_carry(6) <= adder2_B(5) AND adder2_ripple_carry(5);
+    adder2_S(6) <= adder2_B(6) XOR adder2_ripple_carry(6);       adder2_ripple_carry(7) <= adder2_B(6) AND adder2_ripple_carry(6);
+    adder2_S(7) <= adder2_B(7) XOR adder2_ripple_carry(7);       adder2_ripple_carry(8) <= adder2_B(7) AND adder2_ripple_carry(7);
+    adder2_S(8) <= adder2_B(8) XOR adder2_ripple_carry(8);       adder2_ripple_carry(9) <= adder2_B(8) AND adder2_ripple_carry(8);
+    adder2_S(9) <= adder2_B(9) XOR adder2_ripple_carry(9);       adder2_ripple_carry(10) <= adder2_B(9) AND adder2_ripple_carry(9);
+    adder2_S(10) <= adder2_B(10) XOR adder2_ripple_carry(10);    adder2_ripple_carry(11) <= adder2_B(10) AND adder2_ripple_carry(10);
+    adder2_S(11) <= adder2_B(11) XOR adder2_ripple_carry(11);    adder2_ripple_carry(12) <= adder2_B(11) AND adder2_ripple_carry(11);
+    adder2_S(12) <= adder2_B(12) XOR adder2_ripple_carry(12);    adder2_ripple_carry(13) <= adder2_B(12) AND adder2_ripple_carry(12);
+    adder2_S(13) <= adder2_B(13) XOR adder2_ripple_carry(13);    adder2_ripple_carry(14) <= adder2_B(13) AND adder2_ripple_carry(13);
+    adder2_S(14) <= adder2_B(14) XOR adder2_ripple_carry(14);    adder2_ripple_carry(15) <= adder2_B(14) AND adder2_ripple_carry(14);
+    adder2_S(15) <= adder2_B(15) XOR adder2_ripple_carry(15);
+
+
+
 
 end Behavioural;
