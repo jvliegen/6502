@@ -92,6 +92,7 @@ architecture Behavioural of processor is
 
     -- ADDRESS MUXES
     signal cp_address_selector : STD_LOGIC_VECTOR(2 downto 0);
+    signal cp_LDA_selector : STD_LOGIC_VECTOR(2 downto 0);
     signal address_MSH, address_LSH : STD_LOGIC_VECTOR(7 downto 0);
 
     -- ALU
@@ -175,18 +176,18 @@ begin
     decoder_inst00: component decoder port map( sys_reset_n => sys_reset_n_i, clock => clock_i, A => from_memory, control_signals => control_signals);
     
     cp_pc_inc <= control_signals(0);
-    cp_pc_ld <= control_signals(3);
     cp_regA_ld <= control_signals(1);
     cp_regABL_ld <= control_signals(2);
-    cp_regA_ld_rora <= control_signals(4);
-    cp_Cflag_set <= control_signals(5);
-    cp_Dflag_set <= control_signals(6);
-    cp_Iflag_set <= control_signals(7);
-    cp_Cflag_reset <= control_signals(8);
-    cp_Dflag_reset <= control_signals(9);
-    cp_Iflag_reset <= control_signals(10);
-    cp_Vflag_reset <= control_signals(11);
+    cp_pc_ld <= control_signals(3);
+    cp_Cflag_set <= control_signals(4);
+    cp_Dflag_set <= control_signals(5);
+    cp_Iflag_set <= control_signals(6);
+    cp_Cflag_reset <= control_signals(7);
+    cp_Dflag_reset <= control_signals(8);
+    cp_Iflag_reset <= control_signals(9);
+    cp_Vflag_reset <= control_signals(10);
 
+    cp_LDA_selector <= control_signals(28 downto 26);
     cp_address_selector <= control_signals(31 downto 29);
 
     -------------------------------------------------------------------------------
@@ -200,10 +201,14 @@ begin
             flags <= "000000";
         elsif rising_edge(clock_i) then 
             if cp_regA_ld = '1' then 
-                regA <= from_memory;
-            elsif cp_regA_ld_rora = '1' then 
-                regA <= C_flag & regA(7 downto 1);
-                C_flag <= regA(0);
+                if cp_LDA_selector = "000" then 
+                    regA <= from_memory;
+                elsif cp_LDA_selector = "001" then 
+                    regA <= C_flag & regA(7 downto 1);
+                    C_flag <= regA(0);
+                elsif cp_LDA_selector = "010" then 
+                    regA <= regA OR from_memory;
+                end if;
             end if;
 
             if cp_regABL_ld = '1' then 

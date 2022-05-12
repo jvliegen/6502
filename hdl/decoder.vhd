@@ -28,11 +28,10 @@ architecture Behavioural of decoder is
 
     type TMNEMONIC is (XXX,
         LDA_immediate, LDA_zeropage, LDA_zeropageX, LDA_absolute, LDA_absoluteX, LDA_absoluteY, JMP_absolute,
-        ROR_A, SEC, SED, SEI, CLC, CLD, CLI, CLV
+        ROR_A, SEC, SED, SEI, CLC, CLD, CLI, CLV,
+        ORA_immediate
     );
     signal mnemonic, curOpCode : TMNEMONIC;
-
-    signal target, curTarget : STD_LOGIC_VECTOR(7 downto 0);
 
     -- (DE-)LOCALISING IN/OUTPUTS
     signal sys_reset_n_i : STD_LOGIC;
@@ -43,7 +42,7 @@ architecture Behavioural of decoder is
     -- CONTROL PATH
     type Tstates is (sReset,
         sFetch_instruction,
-        sFetch_immediate,
+        sLDA_fetch_immediate,
         sFetch_zeropage_ABL_andClearABH, sFetch_zeropage_data,
         sFetch_zeropageX_ABLplusX_andClearABH, sFetch_zeropageX_data,
         sFetch_absolute_ABL, sFetch_absolute_ABH, sFetch_absolute_data,
@@ -53,7 +52,7 @@ architecture Behavioural of decoder is
         sROR_a,
         sSEC, sSED, sSEI,
         sCLC, sCLD, sCLI, sCLV,
-
+        sORA_fetch_immediate,
         sTrap
     );
     signal curState, nxtState : Tstates;
@@ -66,7 +65,7 @@ architecture Behavioural of decoder is
     signal cp_regA_ld : STD_LOGIC;
     signal cp_regABL_ld : STD_LOGIC;
     signal cp_address_selector : STD_LOGIC_VECTOR(2 downto 0);
-    signal cp_regA_ld_rora : STD_LOGIC;
+    signal cp_LDA_selector : STD_LOGIC_VECTOR(2 downto 0);
     signal cp_Cflag_set : STD_LOGIC;
     signal cp_Dflag_set : STD_LOGIC;
     signal cp_Iflag_set : STD_LOGIC;
@@ -86,7 +85,7 @@ begin
     sys_reset_n_i <= sys_reset_n;
     clock_i <= clock;
     A_i <= A;
-    control_signals <= cp_address_selector & '0' & x"0000" & cp_Vflag_reset & cp_Iflag_reset & cp_Dflag_reset & cp_Cflag_reset & cp_Iflag_set & cp_Dflag_set & cp_Cflag_set & cp_regA_ld_rora & cp_pc_ld & cp_pc_ld_lsh & cp_regA_ld & cp_pc_inc;
+    control_signals <= cp_address_selector & cp_LDA_selector & "000" & x"000" & cp_Vflag_reset & cp_Iflag_reset & cp_Dflag_reset & cp_Cflag_reset & cp_Iflag_set & cp_Dflag_set & cp_Cflag_set & cp_pc_ld & cp_pc_ld_lsh & cp_regA_ld & cp_pc_inc;
 
     -- Sometimes it's interesting if the automatic INC of the PC is not doen
     -- while doing the fetch. This if for operations that only require 1 byte.
@@ -96,22 +95,21 @@ begin
 
     -------------------------------------------------------------------------------
     -- DECODER
-    --    target is ONE-HOT encoded: (0) regA, (3) PC LSH, (4)
     -------------------------------------------------------------------------------
     PMUX: process(A_i)
     begin
         allow_pc_inc_with_fetch <= '1';
         case A_i is
             -- LDA: Load Accumulator with Memory
-            when x"A9" => mnemonic <= LDA_immediate; target <= x"01";
-            when x"A5" => mnemonic <= LDA_zeropage; target <= x"01";
-            when x"B5" => mnemonic <= LDA_zeropageX; target <= x"01";
-            when x"AD" => mnemonic <= LDA_absolute; target <= x"01";
-            when x"BD" => mnemonic <= LDA_absoluteX; target <= x"01";
-            when x"B9" => mnemonic <= LDA_absoluteY; target <= x"01";
-            when x"4C" => mnemonic <= JMP_absolute; target <= x"08";
+            when x"A9" => mnemonic <= LDA_immediate;
+            when x"A5" => mnemonic <= LDA_zeropage;
+            when x"B5" => mnemonic <= LDA_zeropageX;
+            when x"AD" => mnemonic <= LDA_absolute;
+            when x"BD" => mnemonic <= LDA_absoluteX;
+            when x"B9" => mnemonic <= LDA_absoluteY;
+            when x"4C" => mnemonic <= JMP_absolute;
 
-            when x"6A" => mnemonic <= ROR_A; target <= x"08"; allow_pc_inc_with_fetch <= '0';
+            when x"6A" => mnemonic <= ROR_A; allow_pc_inc_with_fetch <= '0';
             when x"38" => mnemonic <= SEC; allow_pc_inc_with_fetch <= '0';
             when x"F8" => mnemonic <= SED; allow_pc_inc_with_fetch <= '0';
             when x"78" => mnemonic <= SEI; allow_pc_inc_with_fetch <= '0';
@@ -121,8 +119,9 @@ begin
             when x"58" => mnemonic <= CLI; allow_pc_inc_with_fetch <= '0';
             when x"B8" => mnemonic <= CLV; allow_pc_inc_with_fetch <= '0';
 
+            when x"09" => mnemonic <= ORA_immediate;
 
-            when others => mnemonic <= XXX; target <= x"00";
+            when others => mnemonic <= XXX;
         end case;
     end process;
 
@@ -139,7 +138,7 @@ begin
             when sReset => nxtState <= sFetch_instruction;
             when sFetch_instruction => 
                 if mnemonic = LDA_immediate then 
-                    nxtState <= sFetch_immediate;
+                    nxtState <= sLDA_fetch_immediate;
                 elsif mnemonic = LDA_zeropage then 
                     nxtState <= sFetch_zeropage_ABL_andClearABH;
                 elsif mnemonic = LDA_zeropageX then 
@@ -171,11 +170,15 @@ begin
                 elsif mnemonic = CLV then 
                     nxtState <= sCLV;
 
+                elsif mnemonic = ORA_immediate then 
+                    nxtState <= sORA_fetch_immediate;
+
                 else
                     nxtState <= sTrap;
                 end if;
 
-            when sFetch_immediate => nxtState <= sFetch_instruction;
+            when sLDA_fetch_immediate => nxtState <= sFetch_instruction;
+            when sORA_fetch_immediate => nxtState <= sFetch_instruction;
 
             when sFetch_zeropage_ABL_andClearABH => nxtState <= sFetch_zeropage_data;
             when sFetch_zeropage_data => nxtState <= sFetch_instruction;
@@ -221,9 +224,9 @@ begin
         cp_regABL_ld <= '0';
         cp_regA_ld <= '0';
         cp_address_selector <= "000";
+        cp_LDA_selector <= "000";
         cp_pc_ld_lsh <= '0';
         cp_pc_ld <= '0';
-        cp_regA_ld_rora <= '0';
         cp_Cflag_set <= '0';
         cp_Dflag_set <= '0';
         cp_Iflag_set <= '0';
@@ -236,7 +239,8 @@ begin
 
             when sFetch_instruction =>                      cp_pc_inc_with_fetch <= '1';
 
-            when sFetch_immediate =>                        cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';
+            when sLDA_fetch_immediate =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "000";
+            when sORA_fetch_immediate =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "010";
 
 
                                                                               -- here the address source is set to ABH and ABL, so it's ready 
@@ -244,30 +248,30 @@ begin
             when sFetch_zeropage_ABL_andClearABH =>         cp_pc_inc_instr <= '0'; cp_address_selector <= "001";
                                                                               -- while the indirect memory is stored, the address source is
                                                                               -- set again to the PC to be able to fetch in the next clock cycle
-            when sFetch_zeropage_data =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';
+            when sFetch_zeropage_data =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "000";
             
 
 
             when sFetch_zeropageX_ABLplusX_andClearABH =>   cp_pc_inc_instr <= '0'; cp_address_selector <= "001";
-            when sFetch_zeropageX_data =>                   cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';
+            when sFetch_zeropageX_data =>                   cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "000";
             
             when sFetch_absolute_ABL =>                     cp_pc_inc_instr <= '1';
             when sFetch_absolute_ABH =>                     cp_pc_inc_instr <= '1';                      
-            when sFetch_absolute_data =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';  cp_address_selector <= "001";
+            when sFetch_absolute_data =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "000"; cp_address_selector <= "001";
 
             when sFetch_absoluteX_ABL =>                    cp_pc_inc_instr <= '1';
             when sFetch_absoluteX_ABH =>                    cp_pc_inc_instr <= '1';                      
-            when sFetch_absoluteX_data =>                   cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';  cp_address_selector <= "001";
+            when sFetch_absoluteX_data =>                   cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "000"; cp_address_selector <= "001";
 
             when sFetch_absoluteY_ABL =>                    cp_pc_inc_instr <= '1';
             when sFetch_absoluteY_ABH =>                    cp_pc_inc_instr <= '1';                      
-            when sFetch_absoluteY_data =>                   cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';  cp_address_selector <= "001";
+            when sFetch_absoluteY_data =>                   cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';  cp_LDA_selector <= "000";cp_address_selector <= "001";
 
             when sFetch_jump_absolute_fetchABL =>           cp_pc_inc_instr <= '1'; cp_pc_ld_lsh <= '1';
             when sFetch_jump_absolute_fetchABH =>           cp_pc_ld <= '1'; cp_address_selector <= "010";
 
             
-            when sROR_a =>                                  cp_pc_inc_instr <= '1'; cp_regA_ld_rora <= '1';
+            when sROR_a =>                                  cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';  cp_LDA_selector <= "001";
             when sSEC =>                                    cp_pc_inc_instr <= '1'; cp_Cflag_set <= '1';
             when sSED =>                                    cp_pc_inc_instr <= '1'; cp_Dflag_set <= '1';
             when sSEI =>                                    cp_pc_inc_instr <= '1'; cp_Iflag_set <= '1';
@@ -275,6 +279,8 @@ begin
             when sCLD =>                                    cp_pc_inc_instr <= '1'; cp_Dflag_reset <= '1';
             when sCLI =>                                    cp_pc_inc_instr <= '1'; cp_Iflag_reset <= '1';
             when sCLV =>                                    cp_pc_inc_instr <= '1'; cp_Vflag_reset <= '1';
+
+
 
             when sReset =>                                  cp_pc_inc_instr <= '1';
 
@@ -292,12 +298,10 @@ begin
         if sys_reset_n_i = '0' then 
             curState <= sReset;
             curOpCode <= XXX;
-            curTarget <= x"00";
         elsif rising_edge(clock_i) then 
             curState <= nxtState;
             if curState = sFetch_instruction then 
                 curOpCode <= mnemonic;
-                curTarget <= target;
             end if;
         end if;
     end process;
