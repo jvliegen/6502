@@ -207,6 +207,7 @@ begin
                     regA <= C_flag & regA(7 downto 1);
                     C_flag <= regA(0);
                 elsif cp_LDA_selector = "010" then 
+-- THIS SHOULD BE CHANGED TO: ALU OUTPUT
                     regA <= regA OR from_memory;
                 end if;
             end if;

@@ -8,7 +8,7 @@ A9 LDA immediate
 0C
 00 ------------------+
 58                   |
-00                   |
+0C                   |
 00                   |
 a9 LDA immediate   <-+
 60
@@ -30,3 +30,7 @@ A9 LDA immediate
 F0
 A9 LDA immediate
 63
+05 ORA zeropage
+07
+A9 LDA immediate
+64

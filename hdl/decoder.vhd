@@ -29,7 +29,7 @@ architecture Behavioural of decoder is
     type TMNEMONIC is (XXX,
         LDA_immediate, LDA_zeropage, LDA_zeropageX, LDA_absolute, LDA_absoluteX, LDA_absoluteY, JMP_absolute,
         ROR_A, SEC, SED, SEI, CLC, CLD, CLI, CLV,
-        ORA_immediate
+        ORA_immediate, ORA_zeropage
     );
     signal mnemonic, curOpCode : TMNEMONIC;
 
@@ -53,6 +53,7 @@ architecture Behavioural of decoder is
         sSEC, sSED, sSEI,
         sCLC, sCLD, sCLI, sCLV,
         sORA_fetch_immediate,
+        sORA_zeropage_ABL_andClearABH, sORA_zeropage_data,
         sTrap
     );
     signal curState, nxtState : Tstates;
@@ -120,6 +121,7 @@ begin
             when x"B8" => mnemonic <= CLV; allow_pc_inc_with_fetch <= '0';
 
             when x"09" => mnemonic <= ORA_immediate;
+            when x"05" => mnemonic <= ORA_zeropage;
 
             when others => mnemonic <= XXX;
         end case;
@@ -172,13 +174,13 @@ begin
 
                 elsif mnemonic = ORA_immediate then 
                     nxtState <= sORA_fetch_immediate;
-
+                elsif mnemonic = ORA_zeropage then 
+                    nxtState <= sORA_zeropage_ABL_andClearABH;
                 else
                     nxtState <= sTrap;
                 end if;
 
             when sLDA_fetch_immediate => nxtState <= sFetch_instruction;
-            when sORA_fetch_immediate => nxtState <= sFetch_instruction;
 
             when sFetch_zeropage_ABL_andClearABH => nxtState <= sFetch_zeropage_data;
             when sFetch_zeropage_data => nxtState <= sFetch_instruction;
@@ -197,6 +199,15 @@ begin
             when sFetch_absoluteY_ABL => nxtState <= sFetch_absoluteY_ABH;
             when sFetch_absoluteY_ABH => nxtState <= sFetch_absoluteY_data;
             when sFetch_absoluteY_data => nxtState <= sFetch_instruction;
+
+            when sORA_fetch_immediate => nxtState <= sFetch_instruction;
+            when sORA_zeropage_ABL_andClearABH => nxtState <= sORA_zeropage_data;
+            when sORA_zeropage_data => nxtState <= sFetch_instruction;
+
+
+
+
+
 
             when sFetch_jump_absolute_fetchABL => nxtState <= sFetch_jump_absolute_fetchABH;
             when sFetch_jump_absolute_fetchABH => nxtState <= sFetch_instruction;
@@ -239,18 +250,14 @@ begin
 
             when sFetch_instruction =>                      cp_pc_inc_with_fetch <= '1';
 
+            -- different LDAs
             when sLDA_fetch_immediate =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "000";
-            when sORA_fetch_immediate =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "010";
-
-
                                                                               -- here the address source is set to ABH and ABL, so it's ready 
                                                                               -- at the next cycle for loading
             when sFetch_zeropage_ABL_andClearABH =>         cp_pc_inc_instr <= '0'; cp_address_selector <= "001";
                                                                               -- while the indirect memory is stored, the address source is
                                                                               -- set again to the PC to be able to fetch in the next clock cycle
             when sFetch_zeropage_data =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "000";
-            
-
 
             when sFetch_zeropageX_ABLplusX_andClearABH =>   cp_pc_inc_instr <= '0'; cp_address_selector <= "001";
             when sFetch_zeropageX_data =>                   cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "000";
@@ -266,6 +273,17 @@ begin
             when sFetch_absoluteY_ABL =>                    cp_pc_inc_instr <= '1';
             when sFetch_absoluteY_ABH =>                    cp_pc_inc_instr <= '1';                      
             when sFetch_absoluteY_data =>                   cp_pc_inc_instr <= '1'; cp_regA_ld <= '1';  cp_LDA_selector <= "000";cp_address_selector <= "001";
+
+            -- different ORAs
+            when sORA_fetch_immediate =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "010";
+
+            when sORA_zeropage_ABL_andClearABH =>           cp_pc_inc_instr <= '0'; cp_address_selector <= "001";
+            when sORA_zeropage_data =>                      cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "010";
+
+
+
+
+
 
             when sFetch_jump_absolute_fetchABL =>           cp_pc_inc_instr <= '1'; cp_pc_ld_lsh <= '1';
             when sFetch_jump_absolute_fetchABH =>           cp_pc_ld <= '1'; cp_address_selector <= "010";
