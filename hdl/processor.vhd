@@ -66,6 +66,8 @@ architecture Behavioural of processor is
     signal cp_Dflag_reset : STD_LOGIC;
     signal cp_Iflag_reset : STD_LOGIC;
     signal cp_Vflag_reset : STD_LOGIC;
+    signal cp_regX_inc : STD_LOGIC;
+    signal cp_regY_inc : STD_LOGIC;
     
     
     -- STACK POINTER
@@ -75,12 +77,18 @@ architecture Behavioural of processor is
     signal program_counter, program_counter_incremented, ripple_carry : STD_LOGIC_VECTOR(15 downto 0);
     signal adder2_b, adder2_ripple_carry, adder2_S : STD_LOGIC_VECTOR(15 downto 0);
     
+
+    signal regX_incremented, ripple_carry_x : STD_LOGIC_VECTOR(7 downto 0);
+    signal regY_incremented, ripple_carry_y : STD_LOGIC_VECTOR(7 downto 0);
+
     -- DECODER
     signal from_memory : STD_LOGIC_VECTOR(7 downto 0);
     signal control_signals : STD_LOGIC_VECTOR(31 downto 0);
     
     -- REGISTERS
     signal regA : STD_LOGIC_VECTOR(7 downto 0);
+    signal regX : STD_LOGIC_VECTOR(7 downto 0);
+    signal regY : STD_LOGIC_VECTOR(7 downto 0);
     signal regABL : STD_LOGIC_VECTOR(7 downto 0);
     signal flags : STD_LOGIC_VECTOR(5 downto 0);
     alias N_flag : STD_LOGIC is flags(5);
@@ -186,6 +194,8 @@ begin
     cp_Dflag_reset <= control_signals(8);
     cp_Iflag_reset <= control_signals(9);
     cp_Vflag_reset <= control_signals(10);
+    cp_regX_inc <= control_signals(11);
+    cp_regY_inc <= control_signals(12);
 
     cp_LDA_selector <= control_signals(28 downto 26);
     cp_address_selector <= control_signals(31 downto 29);
@@ -197,6 +207,8 @@ begin
     begin
         if sys_reset_n_i = '0' then 
             regA <= x"00";
+            regX <= x"00";
+            regY <= x"00";
             regABL <= x"00";
             flags <= "000000";
         elsif rising_edge(clock_i) then 
@@ -210,6 +222,13 @@ begin
 -- THIS SHOULD BE CHANGED TO: ALU OUTPUT
                     regA <= regA OR from_memory;
                 end if;
+            end if;
+
+            if cp_regX_inc = '1' then 
+                regX <= regX_incremented;
+            end if;
+            if cp_regY_inc = '1' then 
+                regY <= regY_incremented;
             end if;
 
             if cp_regABL_ld = '1' then 
@@ -282,6 +301,23 @@ begin
     adder2_S(15) <= adder2_B(15) XOR adder2_ripple_carry(15);
 
 
+    regX_incremented(0) <= not(regX(0));                      ripple_carry_X(1) <= regX(0);
+    regX_incremented(1) <= regX(1) XOR ripple_carry_X(1);       ripple_carry_X(2) <= regX(1) AND ripple_carry_X(1);
+    regX_incremented(2) <= regX(2) XOR ripple_carry_X(2);       ripple_carry_X(3) <= regX(2) AND ripple_carry_X(2);
+    regX_incremented(3) <= regX(3) XOR ripple_carry_X(3);       ripple_carry_X(4) <= regX(3) AND ripple_carry_X(3);
+    regX_incremented(4) <= regX(4) XOR ripple_carry_X(4);       ripple_carry_X(5) <= regX(4) AND ripple_carry_X(4);
+    regX_incremented(5) <= regX(5) XOR ripple_carry_X(5);       ripple_carry_X(6) <= regX(5) AND ripple_carry_X(5);
+    regX_incremented(6) <= regX(6) XOR ripple_carry_X(6);       ripple_carry_X(7) <= regX(6) AND ripple_carry_X(6);
+    regX_incremented(7) <= regX(7) XOR ripple_carry_X(7);
+
+    regY_incremented(0) <= not(regY(0));                      ripple_carry_Y(1) <= regY(0);
+    regY_incremented(1) <= regY(1) XOR ripple_carry_Y(1);       ripple_carry_Y(2) <= regY(1) AND ripple_carry_Y(1);
+    regY_incremented(2) <= regY(2) XOR ripple_carry_Y(2);       ripple_carry_Y(3) <= regY(2) AND ripple_carry_Y(2);
+    regY_incremented(3) <= regY(3) XOR ripple_carry_Y(3);       ripple_carry_Y(4) <= regY(3) AND ripple_carry_Y(3);
+    regY_incremented(4) <= regY(4) XOR ripple_carry_Y(4);       ripple_carry_Y(5) <= regY(4) AND ripple_carry_Y(4);
+    regY_incremented(5) <= regY(5) XOR ripple_carry_Y(5);       ripple_carry_Y(6) <= regY(5) AND ripple_carry_Y(5);
+    regY_incremented(6) <= regY(6) XOR ripple_carry_Y(6);       ripple_carry_Y(7) <= regY(6) AND ripple_carry_Y(6);
+    regY_incremented(7) <= regY(7) XOR ripple_carry_Y(7);
 
 
 end Behavioural;

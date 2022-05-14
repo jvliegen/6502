@@ -34,3 +34,7 @@ A9 LDA immediate
 07
 A9 LDA immediate
 64
+E8 INX
+C8 INY
+E8 INX
+C8 INY

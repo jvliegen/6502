@@ -29,6 +29,7 @@ architecture Behavioural of decoder is
     type TMNEMONIC is (XXX,
         LDA_immediate, LDA_zeropage, LDA_zeropageX, LDA_absolute, LDA_absoluteX, LDA_absoluteY, JMP_absolute,
         ROR_A, SEC, SED, SEI, CLC, CLD, CLI, CLV,
+        INX, INY,
         ORA_immediate, ORA_zeropage
     );
     signal mnemonic, curOpCode : TMNEMONIC;
@@ -49,6 +50,7 @@ architecture Behavioural of decoder is
         sFetch_absoluteX_ABL, sFetch_absoluteX_ABH, sFetch_absoluteX_data,
         sFetch_absoluteY_ABL, sFetch_absoluteY_ABH, sFetch_absoluteY_data,
         sFetch_jump_absolute_fetchABL, sFetch_jump_absolute_fetchABH,
+        sINX, sINY,
         sROR_a,
         sSEC, sSED, sSEI,
         sCLC, sCLD, sCLI, sCLV,
@@ -70,6 +72,8 @@ architecture Behavioural of decoder is
     signal cp_Cflag_set : STD_LOGIC;
     signal cp_Dflag_set : STD_LOGIC;
     signal cp_Iflag_set : STD_LOGIC;
+    signal cp_regX_inc : STD_LOGIC;
+    signal cp_regY_inc : STD_LOGIC;
 
     signal cp_Cflag_reset : STD_LOGIC;
     signal cp_Dflag_reset : STD_LOGIC;
@@ -86,7 +90,12 @@ begin
     sys_reset_n_i <= sys_reset_n;
     clock_i <= clock;
     A_i <= A;
-    control_signals <= cp_address_selector & cp_LDA_selector & "000" & x"000" & cp_Vflag_reset & cp_Iflag_reset & cp_Dflag_reset & cp_Cflag_reset & cp_Iflag_set & cp_Dflag_set & cp_Cflag_set & cp_pc_ld & cp_pc_ld_lsh & cp_regA_ld & cp_pc_inc;
+    control_signals <= cp_address_selector & cp_LDA_selector & "000" & x"00" & "00" & 
+    cp_regY_inc & cp_regX_inc & 
+    cp_Vflag_reset & cp_Iflag_reset & cp_Dflag_reset & cp_Cflag_reset & cp_Iflag_set & cp_Dflag_set & cp_Cflag_set & 
+    cp_pc_ld & cp_pc_ld_lsh & 
+    cp_regA_ld & 
+    cp_pc_inc;
 
     -- Sometimes it's interesting if the automatic INC of the PC is not doen
     -- while doing the fetch. This if for operations that only require 1 byte.
@@ -122,6 +131,9 @@ begin
 
             when x"09" => mnemonic <= ORA_immediate;
             when x"05" => mnemonic <= ORA_zeropage;
+
+            when x"E8" => mnemonic <= INX; allow_pc_inc_with_fetch <= '0';
+            when x"C8" => mnemonic <= INY; allow_pc_inc_with_fetch <= '0';
 
             when others => mnemonic <= XXX;
         end case;
@@ -176,6 +188,12 @@ begin
                     nxtState <= sORA_fetch_immediate;
                 elsif mnemonic = ORA_zeropage then 
                     nxtState <= sORA_zeropage_ABL_andClearABH;
+
+
+                elsif mnemonic = INX then 
+                    nxtState <= sINX;
+                elsif mnemonic = INY then 
+                    nxtState <= sINY;
                 else
                     nxtState <= sTrap;
                 end if;
@@ -222,6 +240,9 @@ begin
             when sCLI => nxtState <= sFetch_instruction;
             when sCLV => nxtState <= sFetch_instruction;
 
+            when sINX => nxtState <= sFetch_instruction;
+            when sINY => nxtState <= sFetch_instruction;
+
 
             when others => nxtState <= sTrap;
         end case;
@@ -245,6 +266,8 @@ begin
         cp_Dflag_reset <= '0';
         cp_Iflag_reset <= '0';
         cp_Vflag_reset <= '0';
+        cp_regX_inc <= '0';
+        cp_regY_inc <= '0';
 
         case curState is
 
@@ -298,7 +321,8 @@ begin
             when sCLI =>                                    cp_pc_inc_instr <= '1'; cp_Iflag_reset <= '1';
             when sCLV =>                                    cp_pc_inc_instr <= '1'; cp_Vflag_reset <= '1';
 
-
+            when sINX =>                                    cp_pc_inc_instr <= '1'; cp_regX_inc <= '1';
+            when sINY =>                                    cp_pc_inc_instr <= '1'; cp_regY_inc <= '1';
 
             when sReset =>                                  cp_pc_inc_instr <= '1';
 
