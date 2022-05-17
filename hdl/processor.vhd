@@ -47,6 +47,20 @@ architecture Behavioural of processor is
         );
     end component;
 
+    component adder is
+        generic (
+            G_WIDTH : integer := 8
+        );
+        port (
+    
+            A : in STD_LOGIC_VECTOR(G_WIDTH-1 downto 0);
+            B : in STD_LOGIC_VECTOR(G_WIDTH-1 downto 0);
+            Cin : in STD_LOGIC;
+            Z : out STD_LOGIC_VECTOR(G_WIDTH-1 downto 0);
+            Cout : out STD_LOGIC
+        );
+    end component;
+
     -- (DE-)LOCALISING IN/OUTPUTS
     signal sys_reset_n_i : STD_LOGIC;
     signal clock_i : STD_LOGIC;
@@ -78,8 +92,8 @@ architecture Behavioural of processor is
     signal adder2_b, adder2_ripple_carry, adder2_S : STD_LOGIC_VECTOR(15 downto 0);
     
 
-    signal regX_incremented, ripple_carry_x : STD_LOGIC_VECTOR(7 downto 0);
-    signal regY_incremented, ripple_carry_y : STD_LOGIC_VECTOR(7 downto 0);
+    signal regX_incremented : STD_LOGIC_VECTOR(7 downto 0);
+    signal regY_incremented : STD_LOGIC_VECTOR(7 downto 0);
 
     -- DECODER
     signal from_memory : STD_LOGIC_VECTOR(7 downto 0);
@@ -105,6 +119,7 @@ architecture Behavioural of processor is
 
     -- ALU
     signal ALU_Z : STD_LOGIC_VECTOR(15 downto 0);
+    signal zeropageX : STD_LOGIC_VECTOR(7 downto 0);
 
     -- IDL
     signal IDL_Z : STD_LOGIC_VECTOR(15 downto 0);
@@ -125,7 +140,7 @@ begin
     -------------------------------------------------------------------------------
     -- ADDRESS MUXES
     -------------------------------------------------------------------------------    
-    PMUX_ADDRESS: process(cp_address_selector, program_counter, from_memory, regABL, ALU_Z, IDL_Z, stack_pointer)
+    PMUX_ADDRESS: process(cp_address_selector, program_counter, from_memory, regABL, ALU_Z, IDL_Z, stack_pointer, zeropageX)
     begin
         case cp_address_selector is
             when "000" => 
@@ -137,8 +152,10 @@ begin
             when "010" => 
                 address_MSH <= from_memory;
                 address_LSH <= regABL;
-            -- when "010" => 
-            --     address_MSH <= ALU_Z(15 downto 8);
+            when "011" => 
+                address_MSH <= x"00";
+                address_LSH <= zeropageX;
+
             --     address_LSH <= ALU_Z(7 downto 0);
             -- when "011" => 
             --     address_MSH <= IDL_Z(15 downto 8);
@@ -263,8 +280,13 @@ begin
 
     
     -------------------------------------------------------------------------------
-    -- ADDER
+    -- ADDERS
     -------------------------------------------------------------------------------
+    -- These are multiple adders. Some of them have a fixed term and could be
+    -- optimised. 
+    -- TODO: see how to combine in a single ALU
+    --       maybe with exception for the 16-bit adder for the PC
+
     program_counter_incremented(0) <= not(program_counter(0));                      ripple_carry(1) <= program_counter(0);
     program_counter_incremented(1) <= program_counter(1) XOR ripple_carry(1);       ripple_carry(2) <= program_counter(1) AND ripple_carry(1);
     program_counter_incremented(2) <= program_counter(2) XOR ripple_carry(2);       ripple_carry(3) <= program_counter(2) AND ripple_carry(2);
@@ -301,23 +323,22 @@ begin
     adder2_S(15) <= adder2_B(15) XOR adder2_ripple_carry(15);
 
 
-    regX_incremented(0) <= not(regX(0));                      ripple_carry_X(1) <= regX(0);
-    regX_incremented(1) <= regX(1) XOR ripple_carry_X(1);       ripple_carry_X(2) <= regX(1) AND ripple_carry_X(1);
-    regX_incremented(2) <= regX(2) XOR ripple_carry_X(2);       ripple_carry_X(3) <= regX(2) AND ripple_carry_X(2);
-    regX_incremented(3) <= regX(3) XOR ripple_carry_X(3);       ripple_carry_X(4) <= regX(3) AND ripple_carry_X(3);
-    regX_incremented(4) <= regX(4) XOR ripple_carry_X(4);       ripple_carry_X(5) <= regX(4) AND ripple_carry_X(4);
-    regX_incremented(5) <= regX(5) XOR ripple_carry_X(5);       ripple_carry_X(6) <= regX(5) AND ripple_carry_X(5);
-    regX_incremented(6) <= regX(6) XOR ripple_carry_X(6);       ripple_carry_X(7) <= regX(6) AND ripple_carry_X(6);
-    regX_incremented(7) <= regX(7) XOR ripple_carry_X(7);
+    adder_incX: component adder generic map(G_WIDTH => 8) port map(
+        A => regX, B => x"01", Cin => '0',
+        Z => regX_incremented, Cout => open
+    );
 
-    regY_incremented(0) <= not(regY(0));                      ripple_carry_Y(1) <= regY(0);
-    regY_incremented(1) <= regY(1) XOR ripple_carry_Y(1);       ripple_carry_Y(2) <= regY(1) AND ripple_carry_Y(1);
-    regY_incremented(2) <= regY(2) XOR ripple_carry_Y(2);       ripple_carry_Y(3) <= regY(2) AND ripple_carry_Y(2);
-    regY_incremented(3) <= regY(3) XOR ripple_carry_Y(3);       ripple_carry_Y(4) <= regY(3) AND ripple_carry_Y(3);
-    regY_incremented(4) <= regY(4) XOR ripple_carry_Y(4);       ripple_carry_Y(5) <= regY(4) AND ripple_carry_Y(4);
-    regY_incremented(5) <= regY(5) XOR ripple_carry_Y(5);       ripple_carry_Y(6) <= regY(5) AND ripple_carry_Y(5);
-    regY_incremented(6) <= regY(6) XOR ripple_carry_Y(6);       ripple_carry_Y(7) <= regY(6) AND ripple_carry_Y(6);
-    regY_incremented(7) <= regY(7) XOR ripple_carry_Y(7);
+    adder_incY: component adder generic map(G_WIDTH => 8) port map(
+        A => regY, B => x"01", Cin => '0',
+        Z => regY_incremented, Cout => open
+    );
+
+    adder_zeropageX: component adder generic map(G_WIDTH => 8) port map(
+        A => regX, B => from_memory, Cin => '0',
+        Z => zeropageX, Cout => open
+    );
+
+
 
 
 end Behavioural;

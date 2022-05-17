@@ -30,7 +30,7 @@ architecture Behavioural of decoder is
         LDA_immediate, LDA_zeropage, LDA_zeropageX, LDA_absolute, LDA_absoluteX, LDA_absoluteY, JMP_absolute,
         ROR_A, SEC, SED, SEI, CLC, CLD, CLI, CLV,
         INX, INY,
-        ORA_immediate, ORA_zeropage
+        ORA_immediate, ORA_zeropage, ORA_zeropageX
     );
     signal mnemonic, curOpCode : TMNEMONIC;
 
@@ -56,6 +56,7 @@ architecture Behavioural of decoder is
         sCLC, sCLD, sCLI, sCLV,
         sORA_fetch_immediate,
         sORA_zeropage_ABL_andClearABH, sORA_zeropage_data,
+        sORA_zeropageX_ABLplusX_andClearABH, sORA_zeropageX_data,
         sTrap
     );
     signal curState, nxtState : Tstates;
@@ -131,6 +132,7 @@ begin
 
             when x"09" => mnemonic <= ORA_immediate;
             when x"05" => mnemonic <= ORA_zeropage;
+            when x"15" => mnemonic <= ORA_zeropageX;
 
             when x"E8" => mnemonic <= INX; allow_pc_inc_with_fetch <= '0';
             when x"C8" => mnemonic <= INY; allow_pc_inc_with_fetch <= '0';
@@ -188,6 +190,8 @@ begin
                     nxtState <= sORA_fetch_immediate;
                 elsif mnemonic = ORA_zeropage then 
                     nxtState <= sORA_zeropage_ABL_andClearABH;
+                elsif mnemonic = ORA_zeropageX then 
+                    nxtState <= sORA_zeropageX_ABLplusX_andClearABH;
 
 
                 elsif mnemonic = INX then 
@@ -199,10 +203,8 @@ begin
                 end if;
 
             when sLDA_fetch_immediate => nxtState <= sFetch_instruction;
-
             when sFetch_zeropage_ABL_andClearABH => nxtState <= sFetch_zeropage_data;
             when sFetch_zeropage_data => nxtState <= sFetch_instruction;
-            
             when sFetch_zeropageX_ABLplusX_andClearABH => nxtState <= sFetch_zeropageX_data;
             when sFetch_zeropageX_data => nxtState <= sFetch_instruction;
             
@@ -221,6 +223,8 @@ begin
             when sORA_fetch_immediate => nxtState <= sFetch_instruction;
             when sORA_zeropage_ABL_andClearABH => nxtState <= sORA_zeropage_data;
             when sORA_zeropage_data => nxtState <= sFetch_instruction;
+            when sORA_zeropageX_ABLplusX_andClearABH => nxtState <= sORA_zeropageX_data;
+            when sORA_zeropageX_data => nxtState <= sFetch_instruction;
 
 
 
@@ -302,6 +306,11 @@ begin
 
             when sORA_zeropage_ABL_andClearABH =>           cp_pc_inc_instr <= '0'; cp_address_selector <= "001";
             when sORA_zeropage_data =>                      cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "010";
+
+            when sORA_zeropageX_ABLplusX_andClearABH =>     cp_pc_inc_instr <= '0'; cp_address_selector <= "011";
+            when sORA_zeropageX_data =>                     cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "010";
+
+
 
 
 

@@ -38,3 +38,6 @@ E8 INX
 C8 INY
 E8 INX
 C8 INY
+15 ORA zeropageX
+12
+E8 INX
