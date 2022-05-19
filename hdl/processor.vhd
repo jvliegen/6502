@@ -20,7 +20,9 @@ entity processor is
         sys_reset_n : in STD_LOGIC;
         clock : in STD_LOGIC;
         address : out STD_LOGIC_VECTOR(15 downto 0);
-        data : in STD_LOGIC_VECTOR(7 downto 0)
+        data : in STD_LOGIC_VECTOR(7 downto 0);
+
+        verification : out STD_LOGIC_VECTOR(47 downto 0)
     );
 end entity processor;
 
@@ -136,6 +138,7 @@ begin
     address <= address_i;
     address_i <= address_MSH & address_LSH;
 
+    verification <= program_counter & regY & regX & regABL & regA;
 
     -------------------------------------------------------------------------------
     -- ADDRESS MUXES

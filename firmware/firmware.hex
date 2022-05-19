@@ -1,5 +1,23 @@
 a9 LDA immediate
 57
+a9 LDA immediate
+58
+A5 LDA zeropage
+01
+A5 LDA zeropage
+03
+E8 INX ( this is to set X for zeropageX)
+B5 LDA zeropageX
+01
+
+
+
+
+
+
+
+a9 LDA immediate
+57
 A5 LDA zeropage
 09
 A9 LDA immediate

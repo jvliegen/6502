@@ -26,7 +26,8 @@ architecture Behavioural of processor_tb is
             sys_reset_n : in STD_LOGIC;
             clock : in STD_LOGIC;
             address : out STD_LOGIC_VECTOR(15 downto 0);
-            data : in STD_LOGIC_VECTOR(7 downto 0)
+            data : in STD_LOGIC_VECTOR(7 downto 0);        
+            verification : out STD_LOGIC_VECTOR(47 downto 0)
         );
     end component;
 
@@ -34,6 +35,7 @@ architecture Behavioural of processor_tb is
     signal clock : STD_LOGIC;
     signal address : STD_LOGIC_VECTOR(15 downto 0);
     signal data : STD_LOGIC_VECTOR(7 downto 0);
+    signal verification : STD_LOGIC_VECTOR(47 downto 0);
 
     file fh : text;
     signal addr_int : integer range 0 to 16384-1;
@@ -44,6 +46,12 @@ architecture Behavioural of processor_tb is
     constant FNAME_HEX : string := "/home/jvliegen/vc/github/jvliegen/6502/firmware/firmware.hex";
     constant clock_period : time := 10 ns;
     
+    signal verification_regA : STD_LOGIC_VECTOR(7 downto 0);
+    signal verification_regABL : STD_LOGIC_VECTOR(7 downto 0);
+    signal verification_regX : STD_LOGIC_VECTOR(7 downto 0);
+    signal verification_regY : STD_LOGIC_VECTOR(7 downto 0);
+    signal verification_program_counter : STD_LOGIC_VECTOR(15 downto 0);
+
 begin
 
     -------------------------------------------------------------------------------
@@ -55,8 +63,37 @@ begin
         wait for clock_period * 10;
 
         sys_reset_n <= '1';
-        wait for clock_period * 10;
+        wait for clock_period/2;
 
+        -- LDA immediate - takes 2 cycles
+        wait for clock_period*2;
+        assert verification_regA = x"57" report "ERROR: LDA_imm" severity error;
+        assert verification_regA /= x"57" report "PASSED: LDA_imm" severity note;
+
+        -- LDA immediate - takes 2 cycles
+        wait for clock_period*2;
+        assert verification_regA = x"58" report "ERROR: LDA_imm" severity error;
+        assert verification_regA /= x"58" report "PASSED: LDA_imm" severity note;
+
+        -- LDA zeropage - takes 3 cycles
+        wait for clock_period*3;
+        assert verification_regA = x"57" report "ERROR: LDA_zeropage" severity error;
+        assert verification_regA /= x"57" report "PASSED: LDA_zeropage" severity note;
+
+        -- LDA zeropage - takes 3 cycles
+        wait for clock_period*3;
+        assert verification_regA = x"58" report "ERROR: LDA_zeropage" severity error;
+        assert verification_regA /= x"58" report "PASSED: LDA_zeropage" severity note;
+
+        -- INX - takes 2 cycles
+        wait for clock_period*2;
+        assert verification_regX = x"01" report "ERROR: INX" severity error;
+        assert verification_regX /= x"01" report "PASSED: INX" severity note;
+
+        -- LDA zeropageX - takes 4 cycles
+        wait for clock_period*4;
+        assert verification_regA = x"A9" report "ERROR: LDA_zeropageX" severity error;
+        assert verification_regA /= x"A9" report "PASSED: LDA_zeropageX" severity note;
 
         wait;
     end process;
@@ -68,8 +105,15 @@ begin
         sys_reset_n => sys_reset_n,
         clock => clock,
         address => address, 
-        data => data
+        data => data,
+        verification => verification
     );
+
+    verification_regA <= verification(7 downto 0);
+    verification_regABL <= verification(15 downto 8);
+    verification_regX <= verification(23 downto 16);
+    verification_regY <= verification(31 downto 24);
+    verification_program_counter <= verification(47 downto 32);
 
     -------------------------------------------------------------------------------
     -- MEMORY

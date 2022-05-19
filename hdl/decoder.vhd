@@ -307,6 +307,7 @@ begin
             when sORA_zeropage_ABL_andClearABH =>           cp_pc_inc_instr <= '0'; cp_address_selector <= "001";
             when sORA_zeropage_data =>                      cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "010";
 
+            -- when 
             when sORA_zeropageX_ABLplusX_andClearABH =>     cp_pc_inc_instr <= '0'; cp_address_selector <= "011";
             when sORA_zeropageX_data =>                     cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "010";
 
