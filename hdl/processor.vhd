@@ -118,6 +118,7 @@ architecture Behavioural of processor is
     signal cp_address_selector : STD_LOGIC_VECTOR(2 downto 0);
     signal cp_LDA_selector : STD_LOGIC_VECTOR(2 downto 0);
     signal address_MSH, address_LSH : STD_LOGIC_VECTOR(7 downto 0);
+    signal cp_ABL_selector : STD_LOGIC_VECTOR(1 downto 0);
 
     -- ALU
     signal ALU_Z : STD_LOGIC_VECTOR(15 downto 0);
@@ -153,11 +154,12 @@ begin
                 address_MSH <= x"00";
                 address_LSH <= from_memory;
             when "010" => 
+                -- used for jump
                 address_MSH <= from_memory;
                 address_LSH <= regABL;
             when "011" => 
                 address_MSH <= x"00";
-                address_LSH <= zeropageX;
+                address_LSH <= regABL;
 
             --     address_LSH <= ALU_Z(7 downto 0);
             -- when "011" => 
@@ -217,6 +219,7 @@ begin
     cp_regX_inc <= control_signals(11);
     cp_regY_inc <= control_signals(12);
 
+    cp_ABL_selector <= control_signals(25 downto 24);
     cp_LDA_selector <= control_signals(28 downto 26);
     cp_address_selector <= control_signals(31 downto 29);
 
@@ -252,7 +255,11 @@ begin
             end if;
 
             if cp_regABL_ld = '1' then 
-                regABL <= from_memory;
+                if cp_ABL_selector = "01" then 
+                    regABL <= zeropageX;
+                else
+                    regABL <= from_memory;
+                end if;
             end if;
 
             if cp_Cflag_set = '1' then 
