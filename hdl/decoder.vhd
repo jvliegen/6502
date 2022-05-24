@@ -307,9 +307,9 @@ begin
 
 
 
-            when sLDA_absolute_ABL =>                     cp_pc_inc_instr <= '1';
-            when sLDA_absolute_ABH =>                     cp_pc_inc_instr <= '1';                      
-            when sLDA_absolute_data =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "000"; cp_address_selector <= "001";
+            when sLDA_absolute_ABL =>                     cp_pc_inc_instr <= '1'; cp_regABL_ld <= '1';
+            when sLDA_absolute_ABH =>                     cp_pc_inc_instr <= '0'; cp_address_selector <= "010";
+            when sLDA_absolute_data =>                    cp_pc_inc_instr <= '1'; cp_regA_ld <= '1'; cp_LDA_selector <= "000";
 
             when sLDA_absoluteX_ABL =>                    cp_pc_inc_instr <= '1';
             when sLDA_absoluteX_ABH =>                    cp_pc_inc_instr <= '1';                      

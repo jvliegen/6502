@@ -95,6 +95,23 @@ begin
         assert verification_regA = x"A9" report "ERROR: LDA_zeropageX" severity error;
         assert verification_regA /= x"A9" report "PASSED: LDA_zeropageX" severity note;
 
+        -- LDA zeropageX - takes 4 cycles
+        wait for clock_period*4;
+        assert verification_regA = x"A5" report "ERROR: LDA_zeropageX" severity error;
+        assert verification_regA /= x"A5" report "PASSED: LDA_zeropageX" severity note;
+
+        -- LDA absolute - takes 4 cycles
+        wait for clock_period*4;
+        assert verification_regA = x"57" report "ERROR: LDA_absolute" severity error;
+        assert verification_regA /= x"57" report "PASSED: LDA_absolute" severity note;
+
+        -- LDA absolute - takes 4 cycles
+        wait for clock_period*4;
+        assert verification_regA = x"E8" report "ERROR: LDA_absolute" severity error;
+        assert verification_regA /= x"E8" report "PASSED: LDA_absolute" severity note;
+        
+
+
         wait;
     end process;
 
