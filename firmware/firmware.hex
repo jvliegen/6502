@@ -11,6 +11,12 @@ B5 LDA zeropageX
 01
 B5 LDA zeropageX
 03
+AD LDA absolute
+01
+00
+AD LDA absolute
+08
+00
 C8 INY (this is end the program)
 
 00 ------------------------
